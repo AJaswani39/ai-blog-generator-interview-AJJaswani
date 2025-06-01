@@ -10,16 +10,17 @@ def generate_blog_post(topic, keywords):
     
     prompt = f"Write a blog post about {topic} using the following keywords: {', '.join(keywords)}"
     
-    response = client.completions.create(
-        model="text-davinci-003",
-        prompt=prompt,
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",  # Updated model
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
         max_tokens=1024,
-        n=1,
-        stop=None,
         temperature=0.5,
     )
     
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content
 
 def generate_blog_title(topic):
     load_dotenv()
@@ -27,16 +28,17 @@ def generate_blog_title(topic):
     
     prompt = f"Generate a title for a blog post about {topic}"
     
-    response = client.completions.create(
-        model="text-davinci-003",
-        prompt=prompt,
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",  # Updated model
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
         max_tokens=64,
-        n=1,
-        stop=None,
         temperature=0.5,
     )
     
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content
 
 
 
