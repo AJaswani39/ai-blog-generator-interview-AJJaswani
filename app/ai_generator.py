@@ -11,7 +11,7 @@ def generate_blog_post(topic, keywords):
     prompt = f"Write a blog post about {topic} using the following keywords: {', '.join(keywords)}"
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",  # Updated model
+        model="gpt-3.5-turbo",  # Free tier model
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
@@ -24,12 +24,12 @@ def generate_blog_post(topic, keywords):
 
 def generate_blog_title(topic):
     load_dotenv()
-    client = OpenAI(api_key=os.getenv("OPEN_API_KEY"))
+    client = OpenAI(api_key=os.getenv("OPEN_API_KEY")) 
     
     prompt = f"Generate a title for a blog post about {topic}"
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",  # Updated model
+        model="gpt-3.5-turbo",  # Free tier model
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
