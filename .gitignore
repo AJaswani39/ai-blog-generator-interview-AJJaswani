@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Including env file to keep API key private
+.env
+
 # Distribution / packaging
 .Python
 build/
