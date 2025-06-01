@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from app.seo_fetcher import get_search_volume, get_avg_cpc, get_keyword_difficulty
 
 def generate_blog_post(topic, keywords):
     load_dotenv()
@@ -36,3 +37,6 @@ def generate_blog_title(topic):
     )
     
     return response.choices[0].text.strip()
+
+
+
