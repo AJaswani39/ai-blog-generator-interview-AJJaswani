@@ -6,7 +6,7 @@ from app.seo_fetcher import get_search_volume, get_avg_cpc, get_keyword_difficul
 
 def generate_blog_post(topic, keywords):
     load_dotenv()
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=os.getenv("OPEN_API_KEY"))
     
     prompt = f"Write a blog post about {topic} using the following keywords: {', '.join(keywords)}"
     
@@ -23,7 +23,7 @@ def generate_blog_post(topic, keywords):
 
 def generate_blog_title(topic):
     load_dotenv()
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=os.getenv("OPEN_API_KEY"))
     
     prompt = f"Generate a title for a blog post about {topic}"
     
