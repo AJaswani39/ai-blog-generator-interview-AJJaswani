@@ -1,6 +1,8 @@
 # Importing the necessary modules and functions
+import os
+from datetime import datetime
 from flask import Flask, jsonify, request
-
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 
@@ -30,6 +32,31 @@ def main():
 @app.route('/about')
 def about():
     return "<h1>About This Blog Generator</h1><p>This application uses AI to generate blog content.</p>"
+
+def scheduler():
+    def generate_and_save(topic, keywords):
+        # Generate blog content
+        blog_title = generate_blog_title(topic)
+        blog_post = generate_blog_post(topic, keywords)
+        
+        # Create blogs directory if it doesn't exist
+        os.makedirs('blogs', exist_ok=True)
+        
+        # Format filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"blogs/blog_{timestamp}.html"
+        
+        # Write content to file
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(f"<h1>{blog_title}</h1>\n<p>{blog_post}</p>")
+        
+        print(f"Blog saved to {filename}")
+        return filename
+    # This should send a request at least once per day, and should generate for a predefined keyword
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(generate_and_save, 'interval', days=1, args=['AI', ['AI', 'Artificial Intelligence']])
+    scheduler.start()
+    return
 
 @app.route('/api/seo', methods=['GET'])
 def get_seo_data():
