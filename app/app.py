@@ -106,3 +106,29 @@ def generate_blog_post_api():
     return jsonify({
         'content': blog_post
     })
+
+@app.route('/generate', methods=['GET'])
+def generate_blog_from_keyword():
+    # Get keyword from URL parameter, default to 'AI' if not provided
+    keyword = request.args.get('keyword', 'AI')
+    
+    # Generate blog content
+    blog_title = generate_blog_title(keyword)
+    blog_post = generate_blog_post(keyword, [keyword])
+    
+    # Get SEO data
+    search_volume = get_search_volume(keyword)
+    avg_cpc = get_avg_cpc(keyword)
+    keyword_difficulty = get_keyword_difficulty(keyword)
+    
+    # Return HTML response
+    return f"""
+        <h1>{blog_title}</h1>
+        <p>{blog_post}</p>
+        <div class="seo-metrics">
+            <h2>SEO Metrics for "{keyword}"</h2>
+            <p>Search Volume: {search_volume}</p>
+            <p>Average CPC: ${avg_cpc}</p>
+            <p>Keyword Difficulty: {keyword_difficulty}/100</p>
+        </div>
+    """

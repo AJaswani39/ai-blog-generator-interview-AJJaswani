@@ -8,4 +8,5 @@ from app.app import app, scheduler
 if __name__ == '__main__':
     # Initialize the scheduler before running the app
     scheduler()
-    app.run(debug=True)
+    app.run(debug=True, use_debugger=False)
+

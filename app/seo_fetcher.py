@@ -1,22 +1,35 @@
 import requests
 import os
+import json
 import random
 from dotenv import load_dotenv
 load_dotenv()
 
-# Predefined data for common keywords
-mock_data = {
-    "AI": {"search_volume": 10000, "avg_cpc": 1.5, "keyword_difficulty": 75},
-    "Machine Learning": {"search_volume": 5500, "avg_cpc": 2.1, "keyword_difficulty": 65},
-    "Artificial Intelligence": {"search_volume": 7000, "avg_cpc": 1.8, "keyword_difficulty": 70},
-    "Deep Learning": {"search_volume": 3000, "avg_cpc": 2.5, "keyword_difficulty": 80},
-    "Natural Language Processing": {"search_volume": 2500, "avg_cpc": 2.2, "keyword_difficulty": 75},
-    "Computer Vision": {"search_volume": 1800, "avg_cpc": 2.8, "keyword_difficulty": 85},
-    "Robotics": {"search_volume": 1200, "avg_cpc": 3.0, "keyword_difficulty": 90},
-    "Internet of Things": {"search_volume": 2000, "avg_cpc": 2.3, "keyword_difficulty": 72},
-    "Big Data": {"search_volume": 3500, "avg_cpc": 2.0, "keyword_difficulty": 68},
-    "Blockchain": {"search_volume": 1500, "avg_cpc": 2.7, "keyword_difficulty": 82}
-}
+# Load mock data from JSON file
+def load_mock_data():
+    try:
+        # Create data directory if it doesn't exist
+        os.makedirs('app/data', exist_ok=True)
+        
+        # Check if file exists, if not create it with default data
+        if not os.path.exists('app/data/keyword_metrics.json'):
+            default_data = {
+                "AI": {"search_volume": 10000, "avg_cpc": 1.5, "keyword_difficulty": 75},
+                # Add other default keywords...
+            }
+            with open('app/data/keyword_metrics.json', 'w') as f:
+                json.dump(default_data, f, indent=2)
+            return default_data
+        
+        # Load existing data
+        with open('app/data/keyword_metrics.json', 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading mock data: {e}")
+        return {}
+
+# Load mock data
+mock_data = load_mock_data()
 
 def get_search_volume(keyword):
     if keyword in mock_data:
