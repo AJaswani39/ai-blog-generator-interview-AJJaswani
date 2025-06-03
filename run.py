@@ -3,10 +3,10 @@
 # all you have to is run this app in the terminal
 # The command to run it is: python run.py
 
-from app.app import app, scheduler
+from app.app import app
 
 if __name__ == '__main__':
-    # Initialize the scheduler before running the app
-    scheduler()
+    # The scheduler is already initialized in app.py
     app.run(debug=True, use_debugger=False)
+
 
