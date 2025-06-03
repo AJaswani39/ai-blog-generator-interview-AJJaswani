@@ -6,6 +6,9 @@ from datetime import datetime
 from flask import Flask, jsonify, request, render_template_string
 from apscheduler.schedulers.background import BackgroundScheduler
 from functools import lru_cache
+from flask_caching import Cache
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Import functions before creating app
 from app.ai_generator import generate_blog_post, generate_blog_title, DEVELOPMENT_MODE, generate_content_batch
@@ -15,6 +18,8 @@ from app.seo_fetcher import get_search_volume, get_avg_cpc, get_keyword_difficul
 print(f"App starting with DEVELOPMENT_MODE = {DEVELOPMENT_MODE}")
 
 app = Flask(__name__)
+cache = Cache(app, config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'flask_cache'})
+limiter = Limiter(get_remote_address, app=app, default_limits=["60 per hour"])
 
 # Base HTML template for consistent styling
 BASE_TEMPLATE = """
@@ -143,6 +148,7 @@ def get_seo_data():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/generate', methods=['POST'])
+@limiter.limit("10 per hour")
 def generate_blog():
     try:
         data = request.get_json()
@@ -167,6 +173,7 @@ def generate_blog():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/generate', methods=['GET'])
+@limiter.limit("10 per hour")
 def generate_blog_from_keyword():
     try:
         # Get keyword from URL parameter, default to 'AI' if not provided

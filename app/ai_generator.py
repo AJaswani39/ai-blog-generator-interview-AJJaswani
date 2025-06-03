@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError
 import logging
 from threading import Lock
+from flask import current_app
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -158,57 +159,71 @@ def get_openai_client():
     
     return OpenAI(api_key=api_key)
 
-@cached
-@retry_with_exponential_backoff()
-def generate_blog_post(topic, keywords):
-    if DEVELOPMENT_MODE:
-        logger.info(f"DEVELOPMENT MODE: Generating mock blog post for {topic}")
-        return f"This is a development mode blog post about {topic}. It discusses various aspects of {topic} and how it relates to {', '.join(keywords)}."
-    
-    logger.info(f"PRODUCTION MODE: Making API call to generate blog post for {topic}")
-    
-    # Apply rate limiting before making the API call
-    rate_limiter.wait_if_needed()
-    
-    client = get_openai_client()
-    prompt = f"Write a short blog post about {topic}. Include these keywords: {', '.join(keywords)}."
-    
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo-0125",
-        messages=[
-            {"role": "system", "content": "You are a concise blog writer. Keep responses under 300 words."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=500,
-        temperature=0.7,
-    )
-    
-    return response.choices[0].message.content
-
-@cached
-@retry_with_exponential_backoff()
 def generate_blog_title(topic):
+    cache = current_app.extensions['cache']
+    cache_key = f"title:{topic}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+    
     if DEVELOPMENT_MODE:
         logger.info(f"DEVELOPMENT MODE: Generating mock blog title for {topic}")
-        return f"The Complete Guide to {topic}: Everything You Need to Know"
+        title = f"The Complete Guide to {topic}: Everything You Need to Know"
+    else:
+        # Apply rate limiting before making the API call
+        rate_limiter.wait_if_needed()
+        
+        client = get_openai_client()
+        prompt = f"Create a short, catchy title for a blog about {topic}"
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo-0125",
+            messages=[
+                {"role": "system", "content": "You create short, catchy blog titles."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=30,
+            temperature=0.7,
+        )
+        
+        title = response.choices[0].message.content
     
-    # Apply rate limiting before making the API call
-    rate_limiter.wait_if_needed()
+    cache.set(cache_key, title, timeout=60*60*24)
+    return title
+
+def generate_blog_post(topic, keywords):
+    cache = current_app.extensions['cache']
+    cache_key = f"post:{topic}:{','.join(keywords)}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
     
-    client = get_openai_client()
-    prompt = f"Create a short, catchy title for a blog about {topic}"
+    if DEVELOPMENT_MODE:
+        logger.info(f"DEVELOPMENT MODE: Generating mock blog post for {topic}")
+        post = f"This is a development mode blog post about {topic}. It discusses various aspects of {topic} and how it relates to {', '.join(keywords)}."
+    else:
+        logger.info(f"PRODUCTION MODE: Making API call to generate blog post for {topic}")
+        
+        # Apply rate limiting before making the API call
+        rate_limiter.wait_if_needed()
+        
+        client = get_openai_client()
+        prompt = f"Write a short blog post about {topic}. Include these keywords: {', '.join(keywords)}."
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo-0125",
+            messages=[
+                {"role": "system", "content": "You are a concise blog writer. Keep responses under 300 words."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.7,
+        )
+        
+        post = response.choices[0].message.content
     
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo-0125",
-        messages=[
-            {"role": "system", "content": "You create short, catchy blog titles."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=30,
-        temperature=0.7,
-    )
-    
-    return response.choices[0].message.content
+    cache.set(cache_key, post, timeout=60*60*24)
+    return post
 
 def generate_content_batch(topic, keywords):
     if DEVELOPMENT_MODE:

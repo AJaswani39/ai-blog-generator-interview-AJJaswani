@@ -3,3 +3,7 @@ Requirements:
  - OpenAI
  - Requests
  - Python-dotenv
+ - Flask-Caching
+ - Flask-Limiter
+ - APScheduler
+ # install with pip
