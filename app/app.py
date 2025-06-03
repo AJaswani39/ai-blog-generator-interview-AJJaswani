@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 from flask import Flask, jsonify, request, render_template_string
 from apscheduler.schedulers.background import BackgroundScheduler
+from functools import lru_cache
 
 # Import functions before creating app
 from app.ai_generator import generate_blog_post, generate_blog_title, DEVELOPMENT_MODE, generate_content_batch
@@ -90,10 +91,10 @@ def main():
             blog_post = generate_blog_post("AI", ["AI", "Artificial Intelligence"])
         
         # SEO data doesn't use the API, so it's fine to call
-        search_volume_ai = get_search_volume("AI")
-        avg_cpc_ai = get_avg_cpc("AI")
-        keyword_difficulty_ai = get_keyword_difficulty("AI")
-        search_volume = get_search_volume("Artificial Intelligence")
+        search_volume_ai = cached_get_search_volume("AI")
+        avg_cpc_ai = cached_get_avg_cpc("AI")
+        keyword_difficulty_ai = cached_get_keyword_difficulty("AI")
+        search_volume = cached_get_search_volume("Artificial Intelligence")
         
         content = f"""
             <h1>{blog_title}</h1>
@@ -132,9 +133,9 @@ def get_seo_data():
         
         data = {
             'keyword': keyword,
-            'search_volume': get_search_volume(keyword),
-            'avg_cpc': get_avg_cpc(keyword),
-            'keyword_difficulty': get_keyword_difficulty(keyword)
+            'search_volume': cached_get_search_volume(keyword),
+            'avg_cpc': cached_get_avg_cpc(keyword),
+            'keyword_difficulty': cached_get_keyword_difficulty(keyword)
         }
 
         return jsonify(data)
@@ -180,9 +181,9 @@ def generate_blog_from_keyword():
         blog_post = content["content"]
         
         # Get SEO data
-        search_volume = get_search_volume(keyword)
-        avg_cpc = get_avg_cpc(keyword)
-        keyword_difficulty = get_keyword_difficulty(keyword)
+        search_volume = cached_get_search_volume(keyword)
+        avg_cpc = cached_get_avg_cpc(keyword)
+        keyword_difficulty = cached_get_keyword_difficulty(keyword)
         
         # Format filename with timestamp and keyword
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -267,3 +268,15 @@ def server_error(e):
         </div>
     """
     return render_template_string(BASE_TEMPLATE, title="Error", content=content), 500
+
+@lru_cache(maxsize=128)
+def cached_get_search_volume(keyword):
+    return get_search_volume(keyword)
+
+@lru_cache(maxsize=128)
+def cached_get_avg_cpc(keyword):
+    return get_avg_cpc(keyword)
+
+@lru_cache(maxsize=128)
+def cached_get_keyword_difficulty(keyword):
+    return get_keyword_difficulty(keyword)
