@@ -119,8 +119,8 @@ if not api_key_valid:
     logger.warning("Forcing DEVELOPMENT_MODE=True due to API key issues")
     DEVELOPMENT_MODE = True
 
-# Force development mode to True - this is the most important line
-DEVELOPMENT_MODE = True
+# Remove or comment out this line to allow production mode!
+# DEVELOPMENT_MODE = True
 
 # Add debug print to verify this value is being used
 print(f"DEVELOPMENT_MODE is set to: {DEVELOPMENT_MODE}")
@@ -145,8 +145,8 @@ class RateLimiter:
             
             self.last_call_time = time.time()
 
-# Create a global rate limiter (3 calls per minute is very conservative)
-rate_limiter = RateLimiter(calls_per_minute=3)
+# Create a global rate limiter (1 call per 2 minutes is very conservative)
+rate_limiter = RateLimiter(calls_per_minute=0.5)
 
 # Modify the OpenAI client creation to use rate limiting
 def get_openai_client():
@@ -177,7 +177,7 @@ def generate_blog_title(topic):
         prompt = f"Create a short, catchy title for a blog about {topic}"
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You create short, catchy blog titles."},
                 {"role": "user", "content": prompt}
@@ -211,7 +211,7 @@ def generate_blog_post(topic, keywords):
         prompt = f"Write a short blog post about {topic}. Include these keywords: {', '.join(keywords)}."
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a concise blog writer. Keep responses under 300 words."},
                 {"role": "user", "content": prompt}
@@ -245,7 +245,7 @@ def generate_content_batch(topic, keywords):
     """
     
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo-0125",
+        model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": "You are a concise blog writer. Keep responses under 300 words."},
             {"role": "user", "content": prompt}
