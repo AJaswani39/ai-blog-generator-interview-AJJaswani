@@ -2,6 +2,8 @@
 import os
 import atexit
 import sys
+import re
+import random
 from datetime import datetime
 from flask import Flask, jsonify, request, render_template_string
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -11,11 +13,24 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 # Import functions before creating app
-from app.ai_generator import generate_blog_post, generate_blog_title, DEVELOPMENT_MODE, generate_content_batch
+from app.ai_generator import generate_blog_post, generate_blog_title, DEVELOPMENT_MODE, generate_content_batch, generate_seo_metrics
 from app.seo_fetcher import get_search_volume, get_avg_cpc, get_keyword_difficulty
 
 # Print development mode status at app startup
 print(f"App starting with DEVELOPMENT_MODE = {DEVELOPMENT_MODE}")
+
+PREDEFINED_KEYWORDS = [
+    "wireless earbuds",
+    "smart home devices",
+    "AI in healthcare",
+    "electric vehicles",
+    "blockchain technology",
+    "remote work tools",
+    "fitness trackers",
+    "sustainable fashion",
+    "cloud computing",
+    "virtual reality"
+]
 
 app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'flask_cache'})
@@ -56,19 +71,26 @@ os.makedirs(BLOG_DIR, exist_ok=True)
 # Scheduler function (moved outside of scheduler() function)
 def generate_and_save(topic, keywords):
     try:
-        # Generate blog content
-        blog_title = generate_blog_title(topic)
-        blog_post = generate_blog_post(topic, keywords)
-        
-        # Format filename with timestamp
+        # Generate blog content and SEO metrics
+        content = generate_content_batch(topic, keywords)
+        metrics = generate_seo_metrics(topic)
+
+        # Render HTML output
+        html_output = render_template_string(
+            BASE_TEMPLATE,
+            title=content["title"],
+            content=content["content"]
+        )
+
+        # Save HTML output to a safe file in a dedicated directory
+        safe_name = safe_filename(topic)
+        save_dir = "saved_blogs"
+        os.makedirs(save_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_topic = topic.replace(' ', '_').lower()
-        filename = os.path.join(BLOG_DIR, f"blog_{safe_topic}_{timestamp}.html")
-        
-        # Write content to file
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(f"<h1>{blog_title}</h1>\n<p>{blog_post}</p>")
-        
+        filename = os.path.join(save_dir, f"blog_{safe_name}_{timestamp}.html")
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(html_output)
+
         print(f"Blog saved to {filename}")
         return filename
     except Exception as e:
@@ -78,9 +100,19 @@ def generate_and_save(topic, keywords):
 # Initialize scheduler only in production mode
 if not DEVELOPMENT_MODE:
     scheduler = BackgroundScheduler()
-    scheduler.add_job(generate_and_save, 'interval', days=1, args=['AI', ['AI', 'Artificial Intelligence']])
+    def scheduled_job():
+        topic = random.choice(PREDEFINED_KEYWORDS)
+        generate_and_save(topic, [topic])
+    # Run every day at 12:00 AM server time - or any other time you prefer - just edit the hour and minute. 
+    # Hours go from 0 to 23, minutes from 0 to 59.
+    print("Scheduler initialized for daily blog generation.")
+    scheduler.add_job(
+        scheduled_job,
+        'cron',
+        hour=0,
+        minute=0
+    )
     scheduler.start()
-    # Register scheduler shutdown
     atexit.register(lambda: scheduler.shutdown())
 
 @app.route('/')
@@ -172,56 +204,44 @@ def generate_blog():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def safe_filename(keyword):
+    # Only allow alphanumeric, dash, and underscore
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', keyword)
+
 @app.route('/generate', methods=['GET'])
 @limiter.limit("10 per hour")
 def generate_blog_from_keyword():
     try:
-        # Get keyword from URL parameter, default to 'AI' if not provided
         keyword = request.args.get('keyword', 'AI')
-        
-        # Print development mode status when route is called
         print(f"generate_blog_from_keyword called with DEVELOPMENT_MODE = {DEVELOPMENT_MODE}")
-        
-        # Use the batched function to reduce API calls
+
+        # Generate content and SEO metrics
         content = generate_content_batch(keyword, [keyword])
-        blog_title = content["title"]
-        blog_post = content["content"]
-        
-        # Get SEO data
-        search_volume = cached_get_search_volume(keyword)
-        avg_cpc = cached_get_avg_cpc(keyword)
-        keyword_difficulty = cached_get_keyword_difficulty(keyword)
-        
-        # Format filename with timestamp and keyword
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_keyword = keyword.replace(' ', '_').lower()
-        filename = os.path.join(BLOG_DIR, f"blog_{safe_keyword}_{timestamp}.html")
-        
-        # Prepare HTML content
-        html_content = f"""
-            <h1>{blog_title}</h1>
-            <p>{blog_post}</p>
-            <div class="metrics">
-                <h2>SEO Metrics for "{keyword}"</h2>
-                <p>Search Volume: {search_volume}</p>
-                <p>Average CPC: ${avg_cpc}</p>
-                <p>Keyword Difficulty: {keyword_difficulty}/100</p>
-            </div>
-            <p>Blog saved to: {os.path.basename(filename)}</p>
-        """
-        
-        # Write content to file
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(f"<h1>{blog_title}</h1>\n<p>{blog_post}</p>")
-        
-        print(f"Blog saved to {filename}")
-        
-        # Return the same HTML content as response
-        return render_template_string(BASE_TEMPLATE, title=f"Blog: {blog_title}", content=html_content)
+        metrics = generate_seo_metrics(keyword)
+
+        # Render HTML output
+        html_output = render_template_string(
+            BASE_TEMPLATE,
+            title=content["title"],
+            content=content["content"]
+        )
+
+        # Save HTML output to a safe file in a dedicated directory
+        safe_name = safe_filename(keyword)
+        save_dir = "saved_blogs"
+        os.makedirs(save_dir, exist_ok=True)
+        filename = os.path.join(save_dir, f"blog_{safe_name}.html")
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(html_output)
+
+        # Return JSON result (content + metrics)
+        return jsonify({
+            "title": content["title"],
+            "content": content["content"],
+            "seo_metrics": metrics
+        })
     except Exception as e:
-        return render_template_string(BASE_TEMPLATE, 
-            title="Error", 
-            content=f"<div class='error'><h1>Error</h1><p>{str(e)}</p></div>")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/debug')
 def debug_info():

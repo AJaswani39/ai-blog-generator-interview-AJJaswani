@@ -20,6 +20,19 @@ DEVELOPMENT_MODE = False
 # Simple in-memory cache
 _cache = {}
 
+def cache_set(cache, key, value, timeout=None):
+    if hasattr(cache, "set"):
+        cache.set(key, value, timeout=timeout)
+    else:
+        cache[key] = value
+
+def cache_get(cache, key):
+    if hasattr(cache, "get"):
+        return cache.get(key)
+    else:
+        return cache.get(key)
+
+
 def cached(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -146,7 +159,7 @@ class RateLimiter:
             self.last_call_time = time.time()
 
 # Create a global rate limiter (1 call per 2 minutes is very conservative)
-rate_limiter = RateLimiter(calls_per_minute=0.5)
+rate_limiter = RateLimiter(calls_per_minute=1)
 
 # Modify the OpenAI client creation to use rate limiting
 def get_openai_client():
@@ -160,9 +173,9 @@ def get_openai_client():
     return OpenAI(api_key=api_key)
 
 def generate_blog_title(topic):
-    cache = current_app.extensions['cache']
+    cache = current_app.extensions.get('cache', _cache)  # fallback to dict if needed
     cache_key = f"title:{topic}"
-    cached = cache.get(cache_key)
+    cached = cache_get(cache, cache_key)
     if cached:
         return cached
     
@@ -188,28 +201,24 @@ def generate_blog_title(topic):
         
         title = response.choices[0].message.content
     
-    cache.set(cache_key, title, timeout=60*60*24)
+    cache_set(cache, cache_key, title, timeout=60*60*24)
     return title
 
 def generate_blog_post(topic, keywords):
-    cache = current_app.extensions['cache']
+    cache = current_app.extensions.get('cache', _cache)  # fallback to dict if needed
     cache_key = f"post:{topic}:{','.join(keywords)}"
-    cached = cache.get(cache_key)
+    cached = cache_get(cache, cache_key)
     if cached:
         return cached
-    
+
     if DEVELOPMENT_MODE:
         logger.info(f"DEVELOPMENT MODE: Generating mock blog post for {topic}")
         post = f"This is a development mode blog post about {topic}. It discusses various aspects of {topic} and how it relates to {', '.join(keywords)}."
     else:
         logger.info(f"PRODUCTION MODE: Making API call to generate blog post for {topic}")
-        
-        # Apply rate limiting before making the API call
         rate_limiter.wait_if_needed()
-        
         client = get_openai_client()
         prompt = f"Write a short blog post about {topic}. Include these keywords: {', '.join(keywords)}."
-        
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -219,10 +228,9 @@ def generate_blog_post(topic, keywords):
             max_tokens=500,
             temperature=0.7,
         )
-        
         post = response.choices[0].message.content
-    
-    cache.set(cache_key, post, timeout=60*60*24)
+
+    cache_set(cache, cache_key, post, timeout=60*60*24)
     return post
 
 def generate_content_batch(topic, keywords):
@@ -266,3 +274,39 @@ def generate_content_batch(topic, keywords):
         "title": title.strip(),
         "content": content.strip()
     }
+
+def generate_seo_metrics(keyword):
+    """
+    Use OpenAI to generate plausible SEO metrics for a keyword.
+    Returns a dict: {'search_volume': int, 'avg_cpc': float, 'keyword_difficulty': int}
+    """
+    cache = current_app.extensions.get('cache', _cache)
+    cache_key = f"seo:{keyword}"
+    cached = cache_get(cache, cache_key)
+    if cached:
+        return cached
+
+    prompt = (
+        f"Estimate plausible SEO metrics for the keyword '{keyword}'. "
+        "Respond in JSON with keys: search_volume (int), avg_cpc (float, USD), keyword_difficulty (0-100 int)."
+    )
+
+    client = get_openai_client()
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are an SEO expert."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=100,
+        temperature=0.7,
+    )
+    import json
+    try:
+        metrics = json.loads(response.choices[0].message.content)
+    except Exception:
+        # fallback if AI response is not valid JSON
+        metrics = {"search_volume": 1000, "avg_cpc": 1.5, "keyword_difficulty": 50}
+
+    cache_set(cache, cache_key, metrics, timeout=60*60*24)
+    return metrics
