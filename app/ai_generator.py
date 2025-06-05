@@ -213,19 +213,38 @@ def generate_blog_post(topic, keywords):
 
     if DEVELOPMENT_MODE:
         logger.info(f"DEVELOPMENT MODE: Generating mock blog post for {topic}")
-        post = f"This is a development mode blog post about {topic}. It discusses various aspects of {topic} and how it relates to {', '.join(keywords)}."
+        post = (
+            f"<h2>Introduction</h2>"
+            f"<p>This is a development mode blog post about {topic}. It discusses various aspects of {topic} and how it relates to {', '.join(keywords)}.</p>"
+            f"<h2>Main Content</h2>"
+            f"<p>Section 1: ...</p><p>Section 2: ...</p>"
+            f"<h2>Conclusion</h2>"
+            f"<p>Summary and final thoughts on {topic}.</p>"
+            f"<div class='affiliate'><h2>Recommended Products</h2><ul>"
+            f"<li><a href='https://affiliate.example.com/product1' target='_blank'>Product 1</a></li>"
+            f"<li><a href='https://affiliate.example.com/product2' target='_blank'>Product 2</a></li>"
+            f"<li><a href='https://affiliate.example.com/product3' target='_blank'>Product 3</a></li>"
+            f"</ul></div>"
+        )
     else:
         logger.info(f"PRODUCTION MODE: Making API call to generate blog post for {topic}")
         rate_limiter.wait_if_needed()
         client = get_openai_client()
-        prompt = f"Write a short blog post about {topic}. Include these keywords: {', '.join(keywords)}."
+        prompt = (
+            f"Write a blog post about '{topic}' with the following structure:\n"
+            "- Introduction\n"
+            "- Main Content (with at least two sections)\n"
+            "- Conclusion\n"
+            "At the end, include a section titled 'Recommended Products' with 2-3 dummy affiliate links (e.g., https://affiliate.example.com/product1).\n"
+            f"Include these keywords: {', '.join(keywords)}."
+        )
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a concise blog writer. Keep responses under 300 words."},
+                {"role": "system", "content": "You are a concise blog writer. Follow the structure and include affiliate links as instructed."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=500,
+            max_tokens=700,
             temperature=0.7,
         )
         post = response.choices[0].message.content

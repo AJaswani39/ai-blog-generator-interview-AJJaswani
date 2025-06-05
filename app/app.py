@@ -13,7 +13,13 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 # Import functions before creating app
-from app.ai_generator import generate_blog_post, generate_blog_title, DEVELOPMENT_MODE, generate_content_batch, generate_seo_metrics
+from app.ai_generator import (
+    generate_blog_post,
+    generate_blog_title,
+    DEVELOPMENT_MODE,
+    generate_content_batch,
+    generate_seo_metrics
+)
 from app.seo_fetcher import get_search_volume, get_avg_cpc, get_keyword_difficulty
 
 # Print development mode status at app startup
@@ -49,6 +55,7 @@ BASE_TEMPLATE = """
         .error { color: red; }
         nav { margin-bottom: 20px; }
         nav a { margin-right: 15px; }
+        .affiliate { margin-top: 30px; background: #e8f4fd; padding: 15px; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -68,42 +75,68 @@ BASE_TEMPLATE = """
 BLOG_DIR = os.path.join(os.getcwd(), 'blogs')
 os.makedirs(BLOG_DIR, exist_ok=True)
 
-# Scheduler function (moved outside of scheduler() function)
+def safe_filename(keyword):
+    # Only allow alphanumeric, dash, and underscore
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', keyword)
+
+# --- Blog Generation and Saving ---
+
+def render_blog_html(title, content, metrics=None):
+    # Add affiliate links at the bottom
+    affiliate_html = """
+    <div class="affiliate">
+        <h2>Recommended Products</h2>
+        <ul>
+            <li><a href="https://affiliate.example.com/product1" target="_blank">Product 1</a></li>
+            <li><a href="https://affiliate.example.com/product2" target="_blank">Product 2</a></li>
+            <li><a href="https://affiliate.example.com/product3" target="_blank">Product 3</a></li>
+        </ul>
+    </div>
+    """
+    metrics_html = ""
+    if metrics:
+        metrics_html = f"""
+        <div class="metrics">
+            <h2>SEO Metrics</h2>
+            <p>Search Volume: {metrics.get('search_volume')}</p>
+            <p>Avg CPC: ${metrics.get('avg_cpc')}</p>
+            <p>Keyword Difficulty: {metrics.get('keyword_difficulty')}/100</p>
+        </div>
+        """
+    return render_template_string(
+        BASE_TEMPLATE,
+        title=title,
+        content=f"<h1>{title}</h1><p>{content}</p>{metrics_html}{affiliate_html}"
+    )
+
+def save_blog_html(html_output, topic, mode="manual"):
+    safe_name = safe_filename(topic)
+    save_dir = os.path.join("saved_blogs", mode)
+    os.makedirs(save_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = os.path.join(save_dir, f"blog_{mode}_{safe_name}_{timestamp}.html")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(html_output)
+    print(f"Blog saved to {filename}")
+    return filename
+
 def generate_and_save(topic, keywords):
     try:
-        # Generate blog content and SEO metrics
         content = generate_content_batch(topic, keywords)
         metrics = generate_seo_metrics(topic)
-
-        # Render HTML output
-        html_output = render_template_string(
-            BASE_TEMPLATE,
-            title=content["title"],
-            content=content["content"]
-        )
-
-        # Save HTML output to a safe file in a dedicated directory
-        safe_name = safe_filename(topic)
-        save_dir = "saved_blogs"
-        os.makedirs(save_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(save_dir, f"blog_{safe_name}_{timestamp}.html")
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(html_output)
-
-        print(f"Blog saved to {filename}")
-        return filename
+        html_output = render_blog_html(content["title"], content["content"], metrics)
+        return save_blog_html(html_output, topic, mode="scheduled")
     except Exception as e:
         print(f"Error in scheduled task: {e}")
         return None
 
-# Initialize scheduler only in production mode
+# --- Scheduler Setup ---
 if not DEVELOPMENT_MODE:
     scheduler = BackgroundScheduler()
     def scheduled_job():
         topic = random.choice(PREDEFINED_KEYWORDS)
         generate_and_save(topic, [topic])
-    # Run every day at 12:00 AM server time - or any other time you prefer - just edit the hour and minute. 
+    # Run every day at 12:00 AM server time - or any other time preferred - just edit the hour and minute. 
     # Hours go from 0 to 23, minutes from 0 to 59.
     print("Scheduler initialized for daily blog generation.")
     scheduler.add_job(
@@ -115,37 +148,21 @@ if not DEVELOPMENT_MODE:
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown())
 
+# --- Routes ---
+
 @app.route('/')
 def main():
     try:
-        # Use cached or mock data for the homepage example
         if DEVELOPMENT_MODE:
             blog_title = "The Ultimate Guide to AI"
             blog_post = "This is a sample blog post about AI and Artificial Intelligence. It demonstrates how the application works without making API calls."
+            metrics = {"search_volume": 1000, "avg_cpc": 1.5, "keyword_difficulty": 50}
         else:
-            # Only make API calls in production
             blog_title = generate_blog_title("AI")
             blog_post = generate_blog_post("AI", ["AI", "Artificial Intelligence"])
-        
-        # SEO data doesn't use the API, so it's fine to call
-        search_volume_ai = cached_get_search_volume("AI")
-        avg_cpc_ai = cached_get_avg_cpc("AI")
-        keyword_difficulty_ai = cached_get_keyword_difficulty("AI")
-        search_volume = cached_get_search_volume("Artificial Intelligence")
-        
-        content = f"""
-            <h1>{blog_title}</h1>
-            <p>{blog_post}</p>
-            <div class="metrics">
-                <h2>SEO Metrics</h2>
-                <p>Search Volume for AI: {search_volume_ai}</p>
-                <p>Avg CPC for AI: ${avg_cpc_ai}</p>
-                <p>Keyword Difficulty for AI: {keyword_difficulty_ai}/100</p>
-                <p>Search Volume for Artificial Intelligence: {search_volume}</p>
-            </div>
-        """
-        
-        return render_template_string(BASE_TEMPLATE, title="AI Blog Generator", content=content)
+            metrics = generate_seo_metrics("AI")
+        html_output = render_blog_html(blog_title, blog_post, metrics)
+        return html_output
     except Exception as e:
         return render_template_string(BASE_TEMPLATE, 
             title="Error", 
@@ -167,14 +184,7 @@ def get_seo_data():
         keyword = request.args.get('keyword')
         if not keyword:
             return jsonify({"error": "Keyword parameter is required"}), 400
-        
-        data = {
-            'keyword': keyword,
-            'search_volume': cached_get_search_volume(keyword),
-            'avg_cpc': cached_get_avg_cpc(keyword),
-            'keyword_difficulty': cached_get_keyword_difficulty(keyword)
-        }
-
+        data = generate_seo_metrics(keyword)
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -186,27 +196,20 @@ def generate_blog():
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request must include JSON data"}), 400
-            
         topic = data.get('topic')
         if not topic:
             return jsonify({"error": "Topic is required"}), 400
-            
         keywords = data.get('keywords', [topic])
-        
-        # Generate content
         blog_title = generate_blog_title(topic)
         blog_post = generate_blog_post(topic, keywords)
-
+        metrics = generate_seo_metrics(topic)
         return jsonify({
             'title': blog_title,
-            'content': blog_post
+            'content': blog_post,
+            'seo_metrics': metrics
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-def safe_filename(keyword):
-    # Only allow alphanumeric, dash, and underscore
-    return re.sub(r'[^a-zA-Z0-9_-]', '_', keyword)
 
 @app.route('/generate', methods=['GET'])
 @limiter.limit("10 per hour")
@@ -214,27 +217,10 @@ def generate_blog_from_keyword():
     try:
         keyword = request.args.get('keyword', 'AI')
         print(f"generate_blog_from_keyword called with DEVELOPMENT_MODE = {DEVELOPMENT_MODE}")
-
-        # Generate content and SEO metrics
         content = generate_content_batch(keyword, [keyword])
         metrics = generate_seo_metrics(keyword)
-
-        # Render HTML output
-        html_output = render_template_string(
-            BASE_TEMPLATE,
-            title=content["title"],
-            content=content["content"]
-        )
-
-        # Save HTML output to a safe file in a dedicated directory
-        safe_name = safe_filename(keyword)
-        save_dir = "saved_blogs"
-        os.makedirs(save_dir, exist_ok=True)
-        filename = os.path.join(save_dir, f"blog_{safe_name}.html")
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(html_output)
-
-        # Return JSON result (content + metrics)
+        html_output = render_blog_html(content["title"], content["content"], metrics)
+        save_blog_html(html_output, keyword, mode="manual")
         return jsonify({
             "title": content["title"],
             "content": content["content"],
@@ -245,19 +231,12 @@ def generate_blog_from_keyword():
 
 @app.route('/debug')
 def debug_info():
-    """Route to check configuration and settings"""
     from app.ai_generator import DEVELOPMENT_MODE, check_api_key
-    
-    # Check API key
     api_key_valid = check_api_key()
-    
-    # Get environment variables
     env_vars = {k: v for k, v in os.environ.items() if k.startswith('OPEN')}
-    # Mask API keys for security
     for k, v in env_vars.items():
         if 'API_KEY' in k and v:
             env_vars[k] = v[:4] + '...' + v[-4:] if len(v) > 8 else '***'
-    
     content = f"""
         <h1>Debug Information</h1>
         <h2>Configuration</h2>
@@ -266,16 +245,13 @@ def debug_info():
             <li>API Key Valid: {api_key_valid}</li>
             <li>Python Version: {sys.version}</li>
         </ul>
-        
         <h2>Environment Variables</h2>
         <ul>
             {''.join([f'<li>{k}: {v}</li>' for k, v in env_vars.items()])}
         </ul>
     """
-    
     return render_template_string(BASE_TEMPLATE, title="Debug Info", content=content)
 
-# Error handlers
 @app.errorhandler(404)
 def page_not_found(e):
     content = """
