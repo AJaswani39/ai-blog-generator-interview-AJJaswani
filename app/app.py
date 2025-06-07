@@ -134,11 +134,9 @@ def generate_and_save(topic, keywords):
 if not DEVELOPMENT_MODE:
     scheduler = BackgroundScheduler()
     def scheduled_job():
-        topic = random.choice(PREDEFINED_KEYWORDS)
-        generate_and_save(topic, [topic])
-    # Run every day at 12:00 AM server time - or any other time preferred - just edit the hour and minute. 
-    # Hours go from 0 to 23, minutes from 0 to 59.
-    print("Scheduler initialized for daily blog generation.")
+        with app.app_context():
+            topic = random.choice(PREDEFINED_KEYWORDS)
+            generate_and_save(topic, [topic])
     scheduler.add_job(
         scheduled_job,
         'cron',

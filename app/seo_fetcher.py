@@ -15,6 +15,10 @@ def load_mock_data():
         if not os.path.exists('app/data/keyword_metrics.json'):
             default_data = {
                 "AI": {"search_volume": 10000, "avg_cpc": 1.5, "keyword_difficulty": 75},
+                "Machine Learning": {"search_volume": 8000, "avg_cpc": 2.0, "keyword_difficulty": 80},
+                "Data Science": {"search_volume": 6000, "avg_cpc": 1.8, "keyword_difficulty": 70}, 
+                "Python Programming": {"search_volume": 12000, "avg_cpc": 1.2, "keyword_difficulty": 85},
+                "Web Development": {"search_volume": 9000, "avg_cpc": 1.0, "keyword_difficulty": 65},
                 # Add other default keywords...
             }
             with open('app/data/keyword_metrics.json', 'w') as f:

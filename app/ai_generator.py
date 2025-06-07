@@ -8,6 +8,7 @@ from openai import OpenAI, RateLimitError
 import logging
 from threading import Lock
 from flask import current_app
+from seo_fetcher import get_search_volume, get_avg_cpc, get_keyword_difficulty  # Import the mock data loader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -324,8 +325,11 @@ def generate_seo_metrics(keyword):
     try:
         metrics = json.loads(response.choices[0].message.content)
     except Exception:
-        # fallback if AI response is not valid JSON
-        metrics = {"search_volume": 1000, "avg_cpc": 1.5, "keyword_difficulty": 50}
-
+        # fallback: use mock functions for this keyword
+        metrics = {
+            "search_volume": get_search_volume(keyword),
+            "avg_cpc": get_avg_cpc(keyword),
+            "keyword_difficulty": get_keyword_difficulty(keyword)
+        }
     cache_set(cache, cache_key, metrics, timeout=60*60*24)
     return metrics
